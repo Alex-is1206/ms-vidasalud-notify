@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import com.rabbitmq.client.Channel;
 
-import cl.duoc.vidasalud.notify.config.RabbitTopologia;
 import cl.duoc.vidasalud.notify.evento.EventoInvalidoException;
 import cl.duoc.vidasalud.notify.evento.EventoVidaSalud;
 import cl.duoc.vidasalud.notify.evento.RegistroIdempotencia;
@@ -22,10 +21,10 @@ import cl.duoc.vidasalud.notify.evento.RegistroIdempotencia;
  * Los dos escuchan el mismo exchange de tipo topic, pero con claves
  * distintas: notificaciones recibe cualquier cambio de estado
  * ("atencion.*") y tickets solo las confirmaciones. Cuando una
- * atención se confirma, el mismo evento llega a las dos colas.
+ * atencion se confirma, el mismo evento llega a las dos colas.
  *
- * La confirmación al broker es explícita: el mensaje se descuenta de la
- * cola únicamente cuando el trabajo terminó bien. Si el servicio se
+ * La confirmacion al broker es explicita: el mensaje se descuenta de la
+ * cola unicamente cuando el trabajo termino bien. Si el servicio se
  * cae a mitad del procesamiento, el mensaje sigue en la cola y se
  * vuelve a entregar.
  */
@@ -40,8 +39,8 @@ public class AtencionesListener {
         this.registro = registro;
     }
 
-    /** Avisa al paciente cada vez que su atención cambia de estado. */
-    @RabbitListener(queues = RabbitTopologia.COLA_NOTIFICACIONES)
+    /** Avisa al paciente cada vez que su atencion cambia de estado. */
+    @RabbitListener(queues = "${vidasalud.rabbit.cola-notificaciones}")
     public void notificarAlPaciente(
             EventoVidaSalud evento,
             Channel canal,
@@ -62,7 +61,7 @@ public class AtencionesListener {
             canal.basicAck(entrega, false);
 
         } catch (EventoInvalidoException e) {
-            // Error permanente: reintentarlo daría el mismo resultado.
+            // Error permanente: reintentarlo daria el mismo resultado.
             log.error("notificaciones | mensaje descartado a la DLQ: {}", e.getMessage());
             canal.basicNack(entrega, false, false);
 
@@ -76,8 +75,8 @@ public class AtencionesListener {
         }
     }
 
-    /** Genera el ticket de admisión para el box cuando la atención se confirma. */
-    @RabbitListener(queues = RabbitTopologia.COLA_TICKETS)
+    /** Genera el ticket de admision para el box cuando la atencion se confirma. */
+    @RabbitListener(queues = "${vidasalud.rabbit.cola-tickets}")
     public void generarTicket(
             EventoVidaSalud evento,
             Channel canal,
@@ -111,7 +110,7 @@ public class AtencionesListener {
     }
 
     /**
-     * En una versión completa aquí se enviaría el correo o la notificación
+     * En una version completa aqui se enviaria el correo o la notificacion
      * push. Para esta entrega se deja registrado en el log, que es lo que
      * permite demostrar el recorrido del mensaje.
      */

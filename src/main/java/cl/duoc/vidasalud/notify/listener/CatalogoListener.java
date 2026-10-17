@@ -11,17 +11,16 @@ import org.springframework.stereotype.Component;
 
 import com.rabbitmq.client.Channel;
 
-import cl.duoc.vidasalud.notify.config.RabbitTopologia;
 import cl.duoc.vidasalud.notify.evento.EventoInvalidoException;
 import cl.duoc.vidasalud.notify.evento.EventoVidaSalud;
 import cl.duoc.vidasalud.notify.evento.RegistroIdempotencia;
 
 /**
- * Consumidor del dominio de catálogo.
+ * Consumidor del dominio de catalogo.
  *
  * Escucha el exchange de tipo direct, donde la clave de ruteo debe
- * coincidir exactamente: cada cambio del catálogo tiene un único
- * destino, la auditoría.
+ * coincidir exactamente: cada cambio del catalogo tiene un unico
+ * destino, la auditoria.
  */
 @Component
 public class CatalogoListener {
@@ -34,8 +33,8 @@ public class CatalogoListener {
         this.registro = registro;
     }
 
-    /** Deja constancia de quién cambió qué en el catálogo. */
-    @RabbitListener(queues = RabbitTopologia.COLA_AUDITORIA)
+    /** Deja constancia de quien cambio que en el catalogo. */
+    @RabbitListener(queues = "${vidasalud.rabbit.cola-auditoria}")
     public void auditarCambio(
             EventoVidaSalud evento,
             Channel canal,

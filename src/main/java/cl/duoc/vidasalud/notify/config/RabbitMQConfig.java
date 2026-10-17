@@ -1,6 +1,8 @@
 package cl.duoc.vidasalud.notify.config;
 
-import static cl.duoc.vidasalud.notify.config.RabbitTopologia.*;
+import static cl.duoc.vidasalud.notify.config.RabbitTopologia.RK_ATENCION_CONFIRMADA;
+import static cl.duoc.vidasalud.notify.config.RabbitTopologia.RK_ATENCION_TODAS;
+import static cl.duoc.vidasalud.notify.config.RabbitTopologia.RK_CATALOGO_CAMBIO;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Binding;
@@ -18,12 +20,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Configuración centralizada de RabbitMQ.
+ * Configuracion centralizada de RabbitMQ.
  *
- * Toda la topología se declara aquí como beans: al arrancar la
- * aplicación, Spring crea en el broker los exchanges, las colas y los
- * bindings que falten. No hay que crear nada a mano en la consola web,
- * y la topología queda versionada junto al código.
+ * Toda la topologia se declara aqui como beans leyendo los nombres desde
+ * NombresRabbit (application.properties): al arrancar la aplicacion, Spring
+ * crea en el broker los exchanges, las colas y los bindings que falten.
  *
  * Son tres flujos de trabajo, cada uno con su cola y su cola de
  * mensajes fallidos (DLQ):
@@ -31,69 +32,71 @@ import org.springframework.context.annotation.Configuration;
  *   cmd.topic  --atencion.*----------> vidasalud.notificaciones
  *   cmd.topic  --atencion.confirmada-> vidasalud.tickets
  *   cmd.direct --catalogo.cambio-----> vidasalud.auditoria
- *
- * Un mensaje que el consumidor rechaza no se pierde ni se reintenta
- * para siempre: el broker lo envía a cmd.dead.dlx, que lo deposita en
- * la DLQ de su cola de origen para revisarlo después.
  */
 @Configuration
 public class RabbitMQConfig {
 
+    private final NombresRabbit nombres;
+
+    public RabbitMQConfig(NombresRabbit nombres) {
+        this.nombres = nombres;
+    }
+
     // ================= Exchanges =================
 
     /**
-     * Topic: la clave de ruteo admite comodines, así que un mismo evento
-     * puede llegar a varias colas a la vez. Al confirmarse una atención,
+     * Topic: la clave de ruteo admite comodines, asi que un mismo evento
+     * puede llegar a varias colas a la vez. Al confirmarse una atencion,
      * el evento "atencion.confirmada" entra tanto a notificaciones
      * (que escucha "atencion.*") como a tickets.
      */
     @Bean
     TopicExchange exchangeAtenciones() {
-        return new TopicExchange(EXCHANGE_TOPIC, true, false);
+        return new TopicExchange(nombres.exchangeTopic(), true, false);
     }
 
     /**
      * Direct: la clave de ruteo debe coincidir exactamente. Se usa para
-     * el catálogo, donde cada evento tiene un único destino.
+     * el catalogo, donde cada evento tiene un unico destino.
      */
     @Bean
     DirectExchange exchangeCatalogo() {
-        return new DirectExchange(EXCHANGE_DIRECT, true, false);
+        return new DirectExchange(nombres.exchangeDirect(), true, false);
     }
 
-    /** Exchange al que el broker envía los mensajes rechazados. */
+    /** Exchange al que el broker envia los mensajes rechazados. */
     @Bean
     DirectExchange exchangeDeadLetter() {
-        return new DirectExchange(EXCHANGE_DLX, true, false);
+        return new DirectExchange(nombres.exchangeDlx(), true, false);
     }
 
     // ================= Colas de trabajo =================
 
     /**
      * Cada cola es durable (sobrevive a un reinicio del broker) y apunta
-     * al DLX: si el consumidor rechaza un mensaje, el broker lo reenvía
-     * ahí con la clave de su propia DLQ.
+     * al DLX: si el consumidor rechaza un mensaje, el broker lo reenvia
+     * ahi con la clave de su propia DLQ.
      */
-    private static Queue colaConDlq(String nombre, String dlq) {
+    private Queue colaConDlq(String nombre, String dlq) {
         return QueueBuilder.durable(nombre)
-                .deadLetterExchange(EXCHANGE_DLX)
+                .deadLetterExchange(nombres.exchangeDlx())
                 .deadLetterRoutingKey(dlq)
                 .build();
     }
 
     @Bean
     Queue colaNotificaciones() {
-        return colaConDlq(COLA_NOTIFICACIONES, DLQ_NOTIFICACIONES);
+        return colaConDlq(nombres.colaNotificaciones(), nombres.dlqNotificaciones());
     }
 
     @Bean
     Queue colaTickets() {
-        return colaConDlq(COLA_TICKETS, DLQ_TICKETS);
+        return colaConDlq(nombres.colaTickets(), nombres.dlqTickets());
     }
 
     @Bean
     Queue colaAuditoria() {
-        return colaConDlq(COLA_AUDITORIA, DLQ_AUDITORIA);
+        return colaConDlq(nombres.colaAuditoria(), nombres.dlqAuditoria());
     }
 
     // ================= Colas de mensajes fallidos =================
@@ -101,17 +104,17 @@ public class RabbitMQConfig {
     /** Una DLQ no apunta a otro DLX: es el final del camino. */
     @Bean
     Queue dlqNotificaciones() {
-        return QueueBuilder.durable(DLQ_NOTIFICACIONES).build();
+        return QueueBuilder.durable(nombres.dlqNotificaciones()).build();
     }
 
     @Bean
     Queue dlqTickets() {
-        return QueueBuilder.durable(DLQ_TICKETS).build();
+        return QueueBuilder.durable(nombres.dlqTickets()).build();
     }
 
     @Bean
     Queue dlqAuditoria() {
-        return QueueBuilder.durable(DLQ_AUDITORIA).build();
+        return QueueBuilder.durable(nombres.dlqAuditoria()).build();
     }
 
     // ================= Bindings =================
@@ -141,28 +144,28 @@ public class RabbitMQConfig {
     Binding bindDlqNotificaciones() {
         return BindingBuilder.bind(dlqNotificaciones())
                 .to(exchangeDeadLetter())
-                .with(DLQ_NOTIFICACIONES);
+                .with(nombres.dlqNotificaciones());
     }
 
     @Bean
     Binding bindDlqTickets() {
         return BindingBuilder.bind(dlqTickets())
                 .to(exchangeDeadLetter())
-                .with(DLQ_TICKETS);
+                .with(nombres.dlqTickets());
     }
 
     @Bean
     Binding bindDlqAuditoria() {
         return BindingBuilder.bind(dlqAuditoria())
                 .to(exchangeDeadLetter())
-                .with(DLQ_AUDITORIA);
+                .with(nombres.dlqAuditoria());
     }
 
-    // ================= Serialización =================
+    // ================= Serializacion =================
 
     /**
      * Los mensajes viajan como JSON, no como objetos serializados de
-     * Java: así cualquier servicio puede leerlos y el contenido se
+     * Java: asi cualquier servicio puede leerlos y el contenido se
      * entiende a simple vista en la consola de RabbitMQ.
      */
     @Bean
@@ -187,9 +190,6 @@ public class RabbitMQConfig {
      * mensaje hasta que el consumidor lo confirma con basicAck. Si el
      * servicio se cae a mitad del procesamiento, el mensaje sigue en la
      * cola y se vuelve a entregar, en lugar de perderse.
-     *
-     * Con la confirmacion automatica, en cambio, el mensaje se borra en
-     * cuanto sale de la cola, antes de saber si el trabajo salio bien.
      */
     @Bean
     SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
