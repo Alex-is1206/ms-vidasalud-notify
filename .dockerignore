@@ -1,0 +1,12 @@
+# Lo que NO debe entrar al contexto de construccion de Docker.
+# target/ rancio puede colar un jar viejo; .env y entorno.ps1 tienen claves.
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+.env
+*.env
+entorno.ps1
+*.log
+HELP.md
